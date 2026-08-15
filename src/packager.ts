@@ -2,7 +2,10 @@ import archiver from "archiver";
 import { createWriteStream, promises as fs } from "node:fs";
 import path from "node:path";
 
-const EXCLUDED_TOP_LEVEL = new Set(["target", ".git", "node_modules"]);
+// test-output/ holds per-run Extent reports (can run to multiple MB per run, as the SecureBank
+// live-testing round confirmed) - execution output, not source, so it doesn't belong in a
+// fresh project deliverable any more than target/ does.
+const EXCLUDED_TOP_LEVEL = new Set(["target", ".git", "node_modules", "test-output"]);
 
 /** Zips a generated project workspace into workspaceDir/output/<projectName>.zip. */
 export async function packageWorkspace(workspaceDir: string, projectName: string): Promise<string> {

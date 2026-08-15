@@ -33,7 +33,7 @@ export async function generateProject(input: JobInput): Promise<GenerationResult
   validateInput(input);
 
   const jobId = createJobId();
-  const workspaceDir = await provisionWorkspace(jobId);
+  const workspaceDir = await provisionWorkspace(jobId, input.projectName);
 
   try {
     const [skill, testCases] = await Promise.all([
