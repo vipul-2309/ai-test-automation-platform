@@ -1,5 +1,9 @@
 node_modules/
 dist/
+build/
+target/
 workspaces/
+verified-projects/
 .env
+.env.local
 *.log

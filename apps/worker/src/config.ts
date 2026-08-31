@@ -5,9 +5,12 @@ function resolveFrameworkRepoPath(): string {
   if (process.env.FRAMEWORK_REPO_PATH && process.env.FRAMEWORK_REPO_PATH.trim() !== "") {
     return process.env.FRAMEWORK_REPO_PATH;
   }
-  // Sibling-folder convention: this repo and Demo-Test-Automation-Framework live
-  // next to each other under the same parent directory.
-  return path.resolve(process.cwd(), "..", "Demo-Test-Automation-Framework");
+  // Sibling-repo convention: ai-test-automation-platform and
+  // Demo-Test-Automation-Framework live next to each other under the same parent
+  // directory. This file runs from apps/worker/, so climb back up to the
+  // ai-test-automation-platform repo root's parent (worker -> apps -> repo root ->
+  // parent) before descending into the sibling repo.
+  return path.resolve(process.cwd(), "..", "..", "..", "Demo-Test-Automation-Framework");
 }
 
 export const config = {
