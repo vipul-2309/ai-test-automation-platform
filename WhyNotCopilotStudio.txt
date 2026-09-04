@@ -1,0 +1,16 @@
+Copilot Studio isn't the right tool for this — it's built for a fundamentally different job than what your AI layer needs.
+
+Why it doesn't fit
+Copilot Studio (and M365 Copilot generally) is a low-code platform for building conversational agents around predefined actions: Power Automate flows, custom connectors, plugins, and knowledge-grounded Q&A over SharePoint/files. What our pipeline actually needs is an agent that:
+
+Has open-ended filesystem access (read/write/edit arbitrary Java files across a whole project)
+Runs arbitrary shell commands (mvn test-compile, mvn test) and reads their raw output
+Iterates on that output autonomously for dozens of turns, deciding for itself what to fix next
+Does all of this unattended, with no predefined "menu" of possible actions
+Copilot Studio has no built-in equivalent of the Agent SDK's Read/Write/Edit/Bash/Glob/Grep tool set. To get anything close, you'd have to build a custom action (a Power Automate flow or Azure Function) that itself shells out and runs Maven — at which point you are writing the entire agent runtime again (essentially rebuilding agentRunner.ts), and Copilot Studio is just a wrapper calling out to it. That's not "using Copilot Studio as the AI layer," that's building the same thing we already have, on a platform with tighter constraints (Power Automate flow runs typically have much shorter timeout ceilings than a live Playwright test loop needs).
+
+A more promising angle you may not have considered
+Anthropic and Microsoft have a partnership making Claude models available through Azure AI Foundry — i.e., real Claude, hosted on Microsoft's cloud, inside your org's existing Azure tenant. If your organization already has Azure access (plausible if you have M365/Copilot), that's a materially different and more relevant question than Copilot Studio: it would mean staying with the actual Claude Agent SDK architecture we've built, just pointed at an Azure-hosted Claude endpoint instead of Anthropic's direct API — the same shape as the Bedrock/Vertex options, not a rebuild.
+
+I'm not fully certain whether the Claude Agent SDK has the same first-class, documented env-var-based routing to Azure Foundry that it has for Bedrock (CLAUDE_CODE_USE_BEDROCK) and Vertex (CLAUDE_CODE_USE_VERTEX) — that's worth verifying properly rather than guessing. Want me to check that specifically? It's a much narrower question than last time, so I'd expect a clean answer.
+
