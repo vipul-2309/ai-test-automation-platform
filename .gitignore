@@ -4,6 +4,7 @@ build/
 target/
 workspaces/
 verified-projects/
+discovery-output/
 .env
 .env.local
 *.log

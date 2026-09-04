@@ -16,7 +16,7 @@ import { toJavaPackageSegment } from "./packageName.js";
  * Paths are relative to the framework repo root, using forward slashes (normalized to the
  * host OS by path.join below).
  */
-const CORE_FILES: readonly string[] = [
+export const CORE_FILES: readonly string[] = [
   "pom.xml",
   ".gitignore",
   "src/main/resources/META-INF/services/org.testng.ITestNGListener",
@@ -68,7 +68,7 @@ export function createJobId(): string {
  * dependency back on the platform repo (see architecture doc: zip-and-deliver, not a
  * shared library).
  */
-function rewriteCorePackage(relativePath: string, content: string, packageSegment: string): {
+export function rewriteCorePackage(relativePath: string, content: string, packageSegment: string): {
   relativePath: string;
   content: string;
 } {

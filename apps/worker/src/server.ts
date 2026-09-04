@@ -26,6 +26,8 @@ app.post("/api/projects", upload.single("testCaseSheet"), async (req, res) => {
       username: req.body.username ? String(req.body.username) : undefined,
       password: req.body.password ? String(req.body.password) : undefined,
       testCaseSheet: req.file.buffer,
+      skipDiscovery: req.body.skipDiscovery === "true" || req.body.skipDiscovery === true,
+      runLiveValidation: req.body.runLiveValidation === "true" || req.body.runLiveValidation === true,
     });
 
     if (!result.success || !result.zipPath) {

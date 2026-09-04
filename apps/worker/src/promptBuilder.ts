@@ -1,5 +1,5 @@
 import { toJavaPackageSegment } from "./packageName.js";
-import type { JobInput, SkillContext, TestCase } from "./types.js";
+import type { DiscoveryResult, JobInput, SkillContext, TestCase } from "./types.js";
 
 export interface BuiltPrompt {
   systemPrompt: string;
@@ -8,6 +8,55 @@ export interface BuiltPrompt {
 
 function renderTestCases(testCases: TestCase[]): string {
   return JSON.stringify(testCases, null, 2);
+}
+
+/**
+ * Renders discovery.ts's structured output into the prompt as ground-truth
+ * locator data. Discovery is a deterministic, non-AI crawl (see discovery.ts's
+ * own doc comment) that only reaches what it's bounded to reach - typically
+ * the entry page and, with credentials, one page past login - so this is
+ * additive to, not a replacement for, the existing infer-from-steps
+ * instruction: anything discovery didn't cover still needs it.
+ */
+function renderDiscovery(discovery: DiscoveryResult | undefined): string {
+  if (!discovery || discovery.pages.length === 0) {
+    return "";
+  }
+
+  const pagesBlock = discovery.pages
+    .map((page) => {
+      const elementLines = page.elements
+        .map((el) => {
+          const label = el.accessibleName ?? el.text ?? `(unlabeled ${el.tag})`;
+          const locatorPool = el.locators.slice(0, 4).map((locator) => `"${locator}"`).join(", ");
+          return `  - ${label} [${el.tag}${el.elementType ? `/${el.elementType}` : ""}]: ${locatorPool}`;
+        })
+        .join("\n");
+      return `### ${page.title} (${page.url})\n${elementLines}`;
+    })
+    .join("\n\n");
+
+  const warningsBlock =
+    discovery.warnings.length > 0
+      ? `\n\nDiscovery warnings (informational, not necessarily blocking):\n${discovery.warnings
+          .map((warning) => `- ${warning}`)
+          .join("\n")}`
+      : "";
+
+  return `
+
+==================== LIVE APPLICATION DISCOVERY ====================
+A deterministic (non-AI) crawl of the real application captured the pages below before this
+session started, including real accessible names and locator candidates already in priority
+order (role > test id > placeholder > id > name > text) as ready-to-use Playwright selector
+strings. This only covers what the crawl actually reached (typically the entry page and, if
+credentials were provided, the page immediately after login) — it does not cover deeper flows
+(a multi-step form, a confirmation modal, etc). Treat it as ground truth for the pages/elements
+it lists; for anything not listed, fall back to inferring from the test steps as usual and flag
+it with // TODO(verify-locator).
+
+${pagesBlock}${warningsBlock}
+==================== END LIVE APPLICATION DISCOVERY ====================`;
 }
 
 function projectNamePascalCase(projectName: string): string {
@@ -29,8 +78,10 @@ export function buildPrompt(params: {
   skill: SkillContext;
   testCases: TestCase[];
   input: Pick<JobInput, "projectName" | "appUrl" | "username" | "password">;
+  discovery?: DiscoveryResult;
 }): BuiltPrompt {
-  const { skill, testCases, input } = params;
+  const { skill, testCases, input, discovery } = params;
+  const hasDiscovery = Boolean(discovery && discovery.pages.length > 0);
   const projectName = input.projectName;
   const ProjectName = projectNamePascalCase(projectName);
   const packageSegment = toJavaPackageSegment(projectName);
@@ -95,16 +146,25 @@ Structured test cases parsed from the submitted TestCases.xlsx (Test Case ID, Pr
 Description, and ordered Steps with Description + Expected Result each):
 
 ${renderTestCases(testCases)}
+${renderDiscovery(discovery)}
 
 Do the following, in order, using the skill's onboarding checklist and templates above:
 
 1. Create one page object per distinct screen/page implied by the test steps, under
    src/main/java/com/${packageSegment}/uilibrary/Pages/ (package ${packageRoot}.uilibrary.Pages),
-   each extending BasePage, using self-healing locator pools. You do not have live browser
-   access in this run — infer reasonable primary locators (prefer data-testid/id/name/
-   role-based selectors mentioned or implied by the steps) with a sensible CSS/XPath
-   fallback, and leave a \`// TODO(verify-locator)\` comment on any locator you are not
-   confident about so a human reviewer can confirm it against the live app.
+   each extending BasePage, using self-healing locator pools. ${
+     hasDiscovery
+       ? "A live discovery pass captured real locators for some pages (see LIVE APPLICATION " +
+         "DISCOVERY above) — use those directly as your primary locator pool entries (already " +
+         "priority-ordered) for any page/element they cover. For anything discovery didn't reach, " +
+         "infer reasonable locators from the test steps (prefer data-testid/id/name/role-based " +
+         "selectors) and leave a `// TODO(verify-locator)` comment."
+       : "You do not have live browser access in this run — infer reasonable primary locators " +
+         "(prefer data-testid/id/name/role-based selectors mentioned or implied by the steps) " +
+         "with a sensible CSS/XPath fallback, and leave a `// TODO(verify-locator)` comment on " +
+         "any locator you are not confident about so a human reviewer can confirm it against the " +
+         "live app."
+   }
 2. Extract every input value referenced in step descriptions into
    src/main/resources/ui/${projectName}-ui-test-data.json, nested to mirror the test flow.
 3. Extract every value from the Expected Result column into
@@ -119,7 +179,7 @@ Do the following, in order, using the skill's onboarding checklist and templates
    specifically for you to fill in.
 6. Add a <test name="..."> block naming your new test classes to testng.xml — it currently
    has an empty <suite> with no <test> blocks yet.
-7. Finally, using the Bash tool, run \`mvn -q test-compile\` from the project root. If it
+7. Finally, using a shell command, run \`mvn -q test-compile\` from the project root. If it
    fails, read the compiler output, fix the files you generated, and re-run it until it
    passes. Do not modify any file that already existed before you started (that's the
    shared core).

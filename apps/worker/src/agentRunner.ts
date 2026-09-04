@@ -1,6 +1,7 @@
 import { CopilotClient, approveAll } from "@github/copilot-sdk";
 import { config } from "./config.js";
 import { resolveCopilotModel, PREFERRED_CLAUDE_MODELS } from "./copilotModel.js";
+import { buildMavenEnv } from "./mavenEnv.js";
 import type { AgentRunResult } from "./types.js";
 
 /**
@@ -32,7 +33,7 @@ export async function runGenerationAgent(params: {
   const transcript: string[] = [];
   let errorMessage: string | undefined;
 
-  const client = new CopilotClient();
+  const client = new CopilotClient({ env: buildMavenEnv() });
 
   try {
     await client.start();
