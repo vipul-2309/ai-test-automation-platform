@@ -29,10 +29,10 @@ export interface SkillContext {
 
 export interface AgentRunResult {
   success: boolean;
-  /** Claude's final summary text when the session ended with subtype "success". */
+  /** The agent's final message text when the session completed without a session.error event. */
   summary?: string;
-  /** SDKResultMessage.subtype, e.g. "success" | "error_max_turns" | "error_during_execution". */
-  subtype?: string;
+  /** Human-readable failure reason (session.error's "errorType: message", a timeout, or a thrown exception). */
+  errorMessage?: string;
   /** Ordered log of assistant text + tool calls, for the debug transcript. */
   transcript: string[];
 }

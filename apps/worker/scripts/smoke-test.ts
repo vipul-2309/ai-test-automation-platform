@@ -1,21 +1,22 @@
 import "dotenv/config";
-import { query } from "@anthropic-ai/claude-agent-sdk";
+import { CopilotClient } from "@github/copilot-sdk";
+import { resolveCopilotModel } from "../src/copilotModel.js";
 
 async function main(): Promise<void> {
-  const stream = query({
-    prompt: "Reply with exactly the single word: OK",
-    options: { maxTurns: 1, model: "claude-opus-5" },
-  }) as AsyncIterable<any>;
+  const client = new CopilotClient();
+  await client.start();
 
-  for await (const message of stream) {
-    if (message.type === "result") {
-      if (message.subtype === "success") {
-        console.log(`AUTH OK — model replied: ${String(message.result).trim()}`);
-      } else {
-        console.error(`AUTH/SESSION FAILED — subtype: ${message.subtype}`);
-        process.exit(1);
-      }
-    }
+  const model = await resolveCopilotModel(client);
+  const session = await client.createSession({ model });
+
+  const response = await session.sendAndWait({ prompt: "Reply with exactly the single word: OK" });
+  await client.stop();
+
+  if (response?.data?.content?.trim() === "OK") {
+    console.log(`AUTH OK — model "${model}" replied: ${response.data.content.trim()}`);
+  } else {
+    console.error(`AUTH/SESSION FAILED — unexpected response: ${JSON.stringify(response?.data)}`);
+    process.exit(1);
   }
 }
 

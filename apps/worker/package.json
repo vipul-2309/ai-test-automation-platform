@@ -3,15 +3,20 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "description": "Phase 1 generation engine: submits project name/app URL/credentials/test-case sheet, runs a Claude Agent SDK session grounded in the Demo-Test-Automation-Framework skill, returns a downloadable framework-compliant project zip.",
+  "description": "Phase 1 generation engine: submits project name/app URL/credentials/test-case sheet, runs a GitHub Copilot SDK session (targeting Claude via an org Copilot license) grounded in the Demo-Test-Automation-Framework skill, returns a downloadable framework-compliant project zip.",
+  "engines": {
+    "node": "^20.19.0 || >=22.12.0"
+  },
   "scripts": {
     "dev": "tsx watch src/server.ts",
     "start": "tsx src/server.ts",
     "generate": "tsx src/cli.ts",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "postinstall": "patch-package"
   },
   "dependencies": {
-    "@anthropic-ai/claude-agent-sdk": "^0.1.0",
+    "@github/copilot": "^1.0.82",
+    "@github/copilot-sdk": "^1.0.11",
     "archiver": "^7.0.1",
     "dotenv": "^16.4.5",
     "exceljs": "^4.4.0",
@@ -23,6 +28,7 @@
     "@types/express": "^4.17.21",
     "@types/multer": "^2.2.0",
     "@types/node": "^20.14.0",
+    "patch-package": "^8.0.1",
     "tsx": "^4.16.2",
     "typescript": "^5.5.4"
   }

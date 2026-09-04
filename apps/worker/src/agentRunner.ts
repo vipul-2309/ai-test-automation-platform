@@ -1,29 +1,26 @@
-import { query } from "@anthropic-ai/claude-agent-sdk";
+import { CopilotClient, approveAll } from "@github/copilot-sdk";
 import { config } from "./config.js";
+import { resolveCopilotModel, PREFERRED_CLAUDE_MODELS } from "./copilotModel.js";
 import type { AgentRunResult } from "./types.js";
 
-function buildAgentEnv(): Record<string, string | undefined> {
-  const env: Record<string, string | undefined> = { ...process.env };
-  if (config.mavenBinDir) {
-    const sep = process.platform === "win32" ? ";" : ":";
-    env.PATH = `${config.mavenBinDir}${sep}${env.PATH ?? ""}`;
-  }
-  return env;
-}
-
 /**
- * Runs one Claude Agent SDK session against an already-provisioned workspace.
- * `cwd` scopes every built-in tool call (Read/Write/Edit/Bash/Glob/Grep) to that
- * directory — this is the Phase 1 stand-in for architecture doc §03's ephemeral
- * sandbox. permissionMode "acceptEdits" auto-approves file edits and filesystem
- * Bash commands so the session runs unattended (there is no human to answer a
- * permission prompt in a headless job).
+ * Runs one GitHub Copilot SDK session against an already-provisioned workspace,
+ * targeting a Claude model served through the org's Copilot license rather than
+ * a direct Anthropic API key - the whole point of this integration is routing
+ * around an org network that blocks api.anthropic.com but already allows
+ * Copilot traffic (see the Phase 0 spike this replaces).
  *
- * Message shapes below are read defensively (loosely typed, checked at runtime
- * by `.type`) rather than imported from the SDK's own types, since the exact
- * exported type names are the installed package's source of truth, not this
- * file's guess at them — see the TypeScript reference at
- * https://code.claude.com/docs/en/agent-sdk/typescript.
+ * `workingDirectory` scopes every built-in tool call (file read/write/edit,
+ * shell) to that directory, the same role `cwd` played for the previous Claude
+ * Agent SDK integration - confirmed empirically that these built-ins exist
+ * without registering any custom tools, unlike the SDK's own examples (which
+ * are about *adding* extra tools, not about needing them for basic file/shell
+ * access). `onPermissionRequest: approveAll` auto-approves everything so the
+ * session runs unattended (there is no human to answer a permission prompt in
+ * a headless job) - the same role `permissionMode: "acceptEdits"` played
+ * before. `systemMessage: { mode: "replace", ... }` hands the session our full
+ * skill-grounded prompt in place of the CLI's own default system message,
+ * matching the old `systemPrompt` option's full-replacement behavior exactly.
  */
 export async function runGenerationAgent(params: {
   systemPrompt: string;
@@ -32,67 +29,80 @@ export async function runGenerationAgent(params: {
 }): Promise<AgentRunResult> {
   const { systemPrompt, userPrompt, cwd } = params;
 
-  const abortController = new AbortController();
-  const timer = setTimeout(() => abortController.abort(), config.agentTimeoutMs);
-
   const transcript: string[] = [];
-  let success = false;
-  let summary: string | undefined;
-  let subtype: string | undefined;
+  let errorMessage: string | undefined;
+
+  const client = new CopilotClient();
 
   try {
-    const stream = query({
-      prompt: userPrompt,
-      options: {
-        systemPrompt,
-        cwd,
-        env: buildAgentEnv(),
-        model: config.agentModel,
-        maxTurns: config.agentMaxTurns,
-        maxBudgetUsd: config.agentMaxBudgetUsd,
-        permissionMode: "acceptEdits",
-        allowedTools: ["Read", "Write", "Edit", "Bash", "Glob", "Grep"],
-        abortController,
-      },
-    }) as AsyncIterable<any>;
+    await client.start();
 
-    for await (const message of stream) {
-      switch (message.type) {
-        case "assistant": {
-          const content = message.message?.content ?? [];
-          for (const block of content) {
-            if (block?.type === "text" && typeof block.text === "string") {
-              transcript.push(block.text);
-            } else if (block?.type === "tool_use") {
-              const inputPreview = JSON.stringify(block.input ?? {}).slice(0, 300);
-              transcript.push(`[tool] ${block.name} ${inputPreview}`);
-            }
-          }
-          break;
-        }
-        case "result": {
-          subtype = message.subtype;
-          success = message.subtype === "success";
-          summary = typeof message.result === "string" ? message.result : undefined;
-          break;
-        }
-        case "system": {
-          if (message.subtype === "init") {
-            const toolCount = Array.isArray(message.tools) ? message.tools.length : "?";
-            transcript.push(`[init] model=${message.model ?? config.agentModel} tools=${toolCount}`);
-          }
-          break;
-        }
-        default:
-          break;
+    const preferredModels = config.agentModel
+      ? [config.agentModel, ...PREFERRED_CLAUDE_MODELS]
+      : PREFERRED_CLAUDE_MODELS;
+    const model = await resolveCopilotModel(client, preferredModels);
+    transcript.push(`[init] model=${model}`);
+
+    const session = await client.createSession({
+      model,
+      workingDirectory: cwd,
+      systemMessage: { mode: "replace", content: systemPrompt },
+      onPermissionRequest: approveAll,
+      ...(config.agentMaxAiCredits !== undefined
+        ? { sessionLimits: { maxAiCredits: config.agentMaxAiCredits } }
+        : {}),
+    });
+
+    session.on("assistant.message", (event) => {
+      const content = event.data?.content;
+      if (typeof content === "string" && content.length > 0) {
+        transcript.push(content);
       }
+    });
+
+    session.on("tool.execution_start", (event) => {
+      const inputPreview = JSON.stringify(event.data.arguments ?? {}).slice(0, 300);
+      transcript.push(`[tool] ${event.data.toolName} ${inputPreview}`);
+    });
+
+    session.on("tool.execution_complete", (event) => {
+      if (!event.data.success) {
+        transcript.push(`[tool-error] ${event.data.error?.message ?? "unknown error"}`);
+      }
+    });
+
+    session.on("session.error", (event) => {
+      errorMessage = `${event.data.errorType}: ${event.data.message}`;
+      transcript.push(`[error] ${errorMessage}`);
+    });
+
+    const response = await session.sendAndWait({ prompt: userPrompt }, config.agentTimeoutMs);
+    const stopErrors = await client.stop();
+    for (const stopError of stopErrors) {
+      transcript.push(`[cleanup-error] ${stopError.message}`);
     }
+
+    if (response === undefined) {
+      return {
+        success: false,
+        errorMessage: errorMessage ?? `Session timed out after ${config.agentTimeoutMs}ms with no response.`,
+        transcript,
+      };
+    }
+
+    return {
+      success: errorMessage === undefined,
+      summary: response.data?.content,
+      errorMessage,
+      transcript,
+    };
   } catch (err) {
     transcript.push(`[error] ${(err as Error).message}`);
-    success = false;
-  } finally {
-    clearTimeout(timer);
+    try {
+      await client.stop();
+    } catch {
+      // best-effort cleanup; the primary error is already captured above
+    }
+    return { success: false, errorMessage: (err as Error).message, transcript };
   }
-
-  return { success, summary, subtype, transcript };
 }

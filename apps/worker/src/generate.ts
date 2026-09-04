@@ -53,7 +53,7 @@ export async function generateProject(input: JobInput): Promise<GenerationResult
         workspaceDir,
         summary: agentResult.summary,
         transcript: agentResult.transcript,
-        error: `Agent session ended with subtype "${agentResult.subtype ?? "unknown"}" instead of "success".`,
+        error: agentResult.errorMessage ?? "Agent session ended without success and without a specific error.",
       };
     }
 
