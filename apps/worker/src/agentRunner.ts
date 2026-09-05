@@ -32,6 +32,7 @@ export async function runGenerationAgent(params: {
 
   const transcript: string[] = [];
   let errorMessage: string | undefined;
+  let aiCreditsUsed: number | undefined;
 
   const client = new CopilotClient({ env: buildMavenEnv() });
 
@@ -77,6 +78,21 @@ export async function runGenerationAgent(params: {
       transcript.push(`[error] ${errorMessage}`);
     });
 
+    // "nano" is the standard SI prefix (1e-9); GitHub bills in whole AI Credits, so this
+    // is our best-effort conversion pending confirmation against the account's actual
+    // billing page once real usage accrues - see the platform's AI-credit-usage writeup.
+    // Captured regardless of how the session ends (success, timeout, or error) since
+    // credits may have already been spent either way.
+    session.on("session.shutdown", (event) => {
+      const totalNanoAiu = event.data.totalNanoAiu;
+      if (typeof totalNanoAiu === "number") {
+        aiCreditsUsed = totalNanoAiu / 1_000_000_000;
+        transcript.push(
+          `[usage] ~${aiCreditsUsed.toFixed(4)} AI credits (model=${event.data.currentModel ?? "unknown"})`
+        );
+      }
+    });
+
     const response = await session.sendAndWait({ prompt: userPrompt }, config.agentTimeoutMs);
     const stopErrors = await client.stop();
     for (const stopError of stopErrors) {
@@ -88,6 +104,7 @@ export async function runGenerationAgent(params: {
         success: false,
         errorMessage: errorMessage ?? `Session timed out after ${config.agentTimeoutMs}ms with no response.`,
         transcript,
+        aiCreditsUsed,
       };
     }
 
@@ -96,6 +113,7 @@ export async function runGenerationAgent(params: {
       summary: response.data?.content,
       errorMessage,
       transcript,
+      aiCreditsUsed,
     };
   } catch (err) {
     transcript.push(`[error] ${(err as Error).message}`);
@@ -104,6 +122,6 @@ export async function runGenerationAgent(params: {
     } catch {
       // best-effort cleanup; the primary error is already captured above
     }
-    return { success: false, errorMessage: (err as Error).message, transcript };
+    return { success: false, errorMessage: (err as Error).message, transcript, aiCreditsUsed };
   }
 }

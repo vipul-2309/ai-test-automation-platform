@@ -53,6 +53,13 @@ export interface AgentRunResult {
   errorMessage?: string;
   /** Ordered log of assistant text + tool calls, for the debug transcript. */
   transcript: string[];
+  /**
+   * AI credits this single session consumed (from the SDK's session.shutdown event),
+   * regardless of success/failure - a timed-out or errored session may still have spent
+   * real credits before it ended. Undefined only if the SDK never emitted a shutdown
+   * usage summary (e.g. the process crashed before cleanup).
+   */
+  aiCreditsUsed?: number;
 }
 
 /** One interactive element found on a discovered page, with locator candidates in priority order. */
@@ -120,6 +127,8 @@ export interface GenerationResult {
   error?: string;
   /** Independent verification (see validation.ts) - informational, doesn't gate success/zipPath above. */
   validation?: ValidationResult;
+  /** Total AI credits spent across every Copilot session this run used (chunked generation calls plus any repair-loop attempts). Zero when the baseline fast path skipped generation entirely. */
+  aiCreditsUsed?: number;
 }
 
 export interface ValidationResult {

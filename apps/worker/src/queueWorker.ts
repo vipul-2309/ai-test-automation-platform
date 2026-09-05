@@ -102,12 +102,18 @@ export async function processJob(
     // validation_report doc comment for why this is stored as a distinct field
     // rather than folded into summary.
     const validationReport = result.validation ? JSON.stringify(result.validation) : null;
+    const aiCreditsUsed = result.aiCreditsUsed ?? null;
 
     if (result.success && result.zipPath) {
       await updateJobStatus(
         job.id,
         "READY",
-        { zip_path: result.zipPath, summary: result.summary, validation_report: validationReport },
+        {
+          zip_path: result.zipPath,
+          summary: result.summary,
+          validation_report: validationReport,
+          ai_credits_used: aiCreditsUsed,
+        },
         db
       );
       console.log(`[queue] job ${job.id} READY`);
@@ -115,7 +121,12 @@ export async function processJob(
       await updateJobStatus(
         job.id,
         "FAILED",
-        { error_message: result.error, summary: result.summary, validation_report: validationReport },
+        {
+          error_message: result.error,
+          summary: result.summary,
+          validation_report: validationReport,
+          ai_credits_used: aiCreditsUsed,
+        },
         db
       );
       console.log(`[queue] job ${job.id} FAILED: ${result.error}`);

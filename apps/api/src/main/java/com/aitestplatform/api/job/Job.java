@@ -58,6 +58,10 @@ public class Job {
     @Column(name = "validation_report", columnDefinition = "TEXT")
     private String validationReport;
 
+    /** Total AI credits consumed (see apps/worker's GenerationResult.aiCreditsUsed) - null if the baseline fast path skipped generation entirely. */
+    @Column(name = "ai_credits_used")
+    private Double aiCreditsUsed;
+
     @Column(name = "created_at", nullable = false)
     private Instant createdAt;
 

@@ -7,14 +7,14 @@ import type { CopilotClient } from "@github/copilot-sdk";
  * actual catalog, with a clear error rather than a silent fallback. Resolve
  * against the live catalog instead of hardcoding one, preferring the first
  * available match from an ordered list of acceptable ids.
+ *
+ * Deliberately Sonnet-only, no Opus entries at any fallback position - a cost
+ * policy decision (Opus 5 bills at roughly 2.5x Sonnet 5's per-token rate; see
+ * the platform's AI-credit-usage writeup), not an availability guess. If
+ * claude-sonnet-5 isn't in this account's catalog, resolveCopilotModel below
+ * throws a clear error rather than silently spending on a pricier model.
  */
-export const PREFERRED_CLAUDE_MODELS = [
-  "claude-opus-5",
-  "claude-sonnet-5",
-  "claude-opus-4.8",
-  "claude-opus-4.7",
-  "claude-haiku-4.5",
-];
+export const PREFERRED_CLAUDE_MODELS = ["claude-sonnet-5"];
 
 export async function resolveCopilotModel(
   client: CopilotClient,

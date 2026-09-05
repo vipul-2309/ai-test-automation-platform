@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
-import { ArrowLeft, ClipboardList, Download, ExternalLink, FolderTree } from 'lucide-react'
+import { ArrowLeft, ClipboardList, Download, ExternalLink, FolderTree, Zap, ZapOff } from 'lucide-react'
 import { absoluteDownloadUrl, getFileTree, getJobStatus } from '../api'
 import type { FileNode, JobResponse } from '../types'
 import { StatusStepper } from '../components/StatusStepper'
@@ -114,6 +114,22 @@ export function JobStatusPage() {
         <Card title="Summary" icon={<ClipboardList className="h-3.5 w-3.5" />} className="mt-6">
           <p className="whitespace-pre-wrap text-sm text-slate-700 dark:text-slate-300">{job.summary}</p>
         </Card>
+      )}
+
+      {job?.aiCreditsUsed !== undefined && (
+        <div
+          className={
+            'mt-6 flex items-center gap-2 rounded-lg border px-4 py-3 text-sm ' +
+            (job.aiCreditsUsed === 0
+              ? 'border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-900 dark:bg-emerald-950 dark:text-emerald-300'
+              : 'border-slate-200 bg-white text-slate-700 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300')
+          }
+        >
+          {job.aiCreditsUsed === 0 ? <ZapOff className="h-4 w-4" /> : <Zap className="h-4 w-4" />}
+          {job.aiCreditsUsed === 0
+            ? 'No AI credits used - reused a previously verified baseline (unchanged test-case sheet).'
+            : `~${job.aiCreditsUsed.toFixed(4)} AI credits used`}
+        </div>
       )}
 
       {job?.validationReport && <ValidationReport report={job.validationReport} />}

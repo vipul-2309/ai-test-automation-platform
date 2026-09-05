@@ -20,7 +20,8 @@ public record JobResponse(
         String filesUrl,
         // Job.validationReport is already a JSON string (written by apps/worker) - embed it
         // as-is rather than re-encoding it as a quoted string within a string.
-        @JsonRawValue String validationReport
+        @JsonRawValue String validationReport,
+        Double aiCreditsUsed
 ) {
     /** downloadUrl/filesUrl carry the per-job token stand-in for a real signed object-storage URL. */
     public static JobResponse from(Job job) {
@@ -42,7 +43,8 @@ public record JobResponse(
                 job.getUpdatedAt(),
                 downloadUrl,
                 filesUrl,
-                job.getValidationReport()
+                job.getValidationReport(),
+                job.getAiCreditsUsed()
         );
     }
 }

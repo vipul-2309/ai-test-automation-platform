@@ -192,6 +192,55 @@ you left a TODO(verify-locator) comment on and why, and confirmation that
 }
 
 /**
+ * Reuses the original systemPrompt (same skill grounding, same "never touch shared
+ * core" rule) with a new, narrowly-scoped userPrompt covering just this chunk's test
+ * cases, telling the agent to read what earlier chunks already added instead of
+ * re-sending the whole onboarding checklist or every prior chunk's test cases. Each
+ * call is a fresh session (see generate.ts's chunkTestCases/chunking loop), not a
+ * resumed conversation - the same "fresh session, rediscover from the workspace"
+ * pattern buildRepairPrompt below already uses for repair attempts.
+ */
+export function buildChunkPrompt(params: {
+  projectName: string;
+  chunkIndex: number;
+  chunkCount: number;
+  testCases: TestCase[];
+  priorCompileError?: string;
+}): string {
+  const { projectName, chunkIndex, chunkCount, testCases, priorCompileError } = params;
+
+  const compileNote = priorCompileError
+    ? `\n\nThe project currently fails to compile because of the previous chunk's changes. Fix ` +
+      `this first, then continue with this chunk's test cases below:\n\n\`\`\`\n${priorCompileError.slice(0, 4000)}\n\`\`\`\n`
+    : "";
+
+  return `This is chunk ${chunkIndex + 1} of ${chunkCount} for onboarding the "${projectName}" project -
+earlier chunks in this same run already added page objects, test classes, test data,
+expected-results constants, and testng.xml/config.properties entries for other test cases from
+the same sheet.
+${compileNote}
+Before writing anything, read the files already in this workspace (page objects under
+uilibrary/Pages/, test classes under uitests/, the *-ui-test-data.json file, the
+*ExpectedResults.java file, testng.xml) so you reuse existing page objects, test data, and
+expected-result constants for screens/values already covered instead of recreating them. Only
+add new page objects for screens genuinely not covered yet, extend the existing test-data JSON
+and ExpectedResults file rather than replacing them, and add a new <test> block (or extend the
+existing one) in testng.xml for your new test class(es).
+
+Structured test cases for this chunk only (Test Case ID, Pre-Condition, Description, and ordered
+Steps with Description + Expected Result each):
+
+${renderTestCases(testCases)}
+
+Follow the same conventions, package layout, and self-healing locator approach as the rest of
+this project. When done, run \`mvn -q test-compile\` from the project root and fix any failures
+before finishing.
+
+Reply with a concise summary: which files you added or extended for this chunk, and confirmation
+that \`mvn -q test-compile\` passed.`;
+}
+
+/**
  * Reuses the original systemPrompt (same skill grounding, same "never touch
  * shared core" rule) with a new, narrowly-scoped userPrompt describing
  * exactly what independent validation (validation.ts) found wrong, rather

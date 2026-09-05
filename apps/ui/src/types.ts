@@ -47,6 +47,7 @@ export interface JobResponse {
   downloadUrl?: string
   filesUrl?: string
   validationReport?: ValidationResult
+  aiCreditsUsed?: number
 }
 
 export interface FileNode {

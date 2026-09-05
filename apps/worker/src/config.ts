@@ -16,7 +16,11 @@ function resolveFrameworkRepoPath(): string {
 export const config = {
   frameworkRepoPath: resolveFrameworkRepoPath(),
   mavenBinDir: process.env.MAVEN_BIN_DIR?.trim() || undefined,
-  /** Tried first, ahead of copilotModel.ts's PREFERRED_CLAUDE_MODELS fallback list, if set. */
+  /**
+   * Tried first, ahead of copilotModel.ts's PREFERRED_CLAUDE_MODELS fallback list, if set.
+   * Cost policy: keep this at claude-sonnet-5 (or unset, since that's the sole fallback
+   * entry too) - never an Opus model id. See PREFERRED_CLAUDE_MODELS's doc comment.
+   */
   agentModel: process.env.AGENT_MODEL?.trim() || undefined,
   /**
    * GitHub's own Copilot spend unit, not USD - there's no direct equivalent to the
@@ -35,8 +39,24 @@ export const config = {
    * generate.ts), since the loop itself is opt-in.
    */
   agentMaxRepairAttempts: Number(process.env.AGENT_MAX_REPAIR_ATTEMPTS ?? 3),
+  /**
+   * Above this many test cases, generation splits into multiple sequential Copilot
+   * sessions (one per chunk of up to this size) against the same workspace, instead of
+   * one session holding every test case's worth of context. The real driver of agentic
+   * cost is a session's cumulative conversation (every tool call/result re-sent as
+   * context on the next turn), which grows unbounded within one long session - chunking
+   * resets that growth per chunk, at the cost of re-paying the constant framework-skill
+   * system-prompt tokens once per chunk. See generate.ts's chunkTestCases.
+   */
+  testCaseChunkSize: Number(process.env.TEST_CASE_CHUNK_SIZE ?? 15),
   port: Number(process.env.PORT ?? 4000),
   workspacesDir: path.resolve(process.cwd(), "workspaces"),
+  /**
+   * Per-project store of the last independently-verified-passing generated files (see
+   * baseline.ts). A re-submission for the same project name with an unchanged test-case
+   * sheet reuses this instead of running Copilot again at all.
+   */
+  verifiedProjectsDir: path.resolve(process.cwd(), "verified-projects"),
 } as const;
 
 export function assertConfigured(): void {
