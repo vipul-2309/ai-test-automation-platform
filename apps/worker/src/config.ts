@@ -28,6 +28,13 @@ export const config = {
     ? Number(process.env.AGENT_MAX_AI_CREDITS)
     : undefined,
   agentTimeoutMs: Number(process.env.AGENT_TIMEOUT_MS ?? 900_000),
+  /**
+   * Each repair attempt is a full extra Copilot session, so this is a real
+   * cost knob, not just a safety rail - kept modest by default and only ever
+   * consulted when JobInput.enableRepairLoop is explicitly set (see
+   * generate.ts), since the loop itself is opt-in.
+   */
+  agentMaxRepairAttempts: Number(process.env.AGENT_MAX_REPAIR_ATTEMPTS ?? 3),
   port: Number(process.env.PORT ?? 4000),
   workspacesDir: path.resolve(process.cwd(), "workspaces"),
 } as const;

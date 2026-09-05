@@ -1,5 +1,5 @@
 import { toJavaPackageSegment } from "./packageName.js";
-import type { DiscoveryResult, JobInput, SkillContext, TestCase } from "./types.js";
+import type { DiscoveryResult, JobInput, SkillContext, TestCase, TestFailure } from "./types.js";
 
 export interface BuiltPrompt {
   systemPrompt: string;
@@ -189,4 +189,52 @@ you left a TODO(verify-locator) comment on and why, and confirmation that
 \`mvn -q test-compile\` passed.`;
 
   return { systemPrompt, userPrompt };
+}
+
+/**
+ * Reuses the original systemPrompt (same skill grounding, same "never touch
+ * shared core" rule) with a new, narrowly-scoped userPrompt describing
+ * exactly what independent validation (validation.ts) found wrong, rather
+ * than re-sending the whole onboarding checklist - the agent still has the
+ * workspace's actual files to read via its own tools. Each call is a fresh
+ * session (see generate.ts's repair loop), not a resumed conversation.
+ */
+export function buildRepairPrompt(params: {
+  projectName: string;
+  compileError?: string;
+  testFailures?: TestFailure[];
+  attempt: number;
+  maxAttempts: number;
+}): string {
+  const { projectName, compileError, testFailures, attempt, maxAttempts } = params;
+
+  const failureBlock = compileError
+    ? `The project fails to compile. Maven's output:\n\n\`\`\`\n${compileError.slice(0, 6000)}\n\`\`\``
+    : `The project compiles, but ${testFailures?.length ?? 0} test(s) failed when run against the live application:\n\n` +
+      (testFailures ?? [])
+        .map(
+          (failure) =>
+            `- ${failure.testName}${failure.description ? ` (${failure.description})` : ""}: ${
+              failure.message ?? "(no message captured)"
+            }`
+        )
+        .join("\n");
+
+  return `This is repair attempt ${attempt} of ${maxAttempts} for the "${projectName}" project already
+present in this workspace. Do NOT regenerate from scratch or rewrite files unrelated to the
+failure below — fix only what's actually broken, following the same conventions as the original
+generation. Never modify a shared-core file (BasePage, BaseUiTest, FrameworkConfig,
+JsonDataReader, listeners, apilibrary/*, pom.xml) — if the failure looks like a genuine framework
+core gap rather than something fixable in your own generated files, say so in your summary
+instead of touching the shared core.
+
+${failureBlock}
+
+Diagnose the specific cause by reading the relevant generated file(s) — for a live-app test
+failure, consider that the locator itself may be wrong even though the code compiles. Fix it,
+then re-run \`mvn -q test-compile\` (and, if the original failure was a live test failure rather
+than a compile error, \`mvn -q test\` too) to confirm before finishing.
+
+Reply with a concise summary: what was actually wrong, what you changed, and whether your fix is
+confirmed by a passing re-run.`;
 }

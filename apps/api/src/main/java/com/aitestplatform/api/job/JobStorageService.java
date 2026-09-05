@@ -30,15 +30,32 @@ public class JobStorageService {
         return jobsRoot.resolve(jobId.toString());
     }
 
+    /**
+     * apps/worker's parseTestCaseSheet sniffs actual file content (the ZIP
+     * signature XLSX starts with) rather than trusting an extension, so a
+     * mismatched extension here wouldn't break parsing - but hardcoding
+     * ".xlsx" regardless of what was actually uploaded made every CSV sheet
+     * misleading to look at on disk once CSV became a real supported format.
+     * Preserves the real extension instead.
+     */
     public String storeTestCaseSheet(UUID jobId, MultipartFile sheet) {
         Path dir = createJobDirectory(jobId);
-        Path target = dir.resolve("test-case-sheet.xlsx");
+        String extension = extensionOf(sheet.getOriginalFilename());
+        Path target = dir.resolve("test-case-sheet" + extension);
         try {
             sheet.transferTo(target);
         } catch (IOException e) {
             throw new UncheckedIOException("Failed to store test case sheet for job " + jobId, e);
         }
         return target.toString();
+    }
+
+    private static String extensionOf(String originalFilename) {
+        if (originalFilename == null) {
+            return "";
+        }
+        int dotIndex = originalFilename.lastIndexOf('.');
+        return dotIndex >= 0 ? originalFilename.substring(dotIndex) : "";
     }
 
     public String storeCredentials(UUID jobId, String username, String password) {

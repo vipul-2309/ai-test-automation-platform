@@ -29,6 +29,14 @@ export interface JobInput {
    * default rather than mirroring discovery's single-login footprint.
    */
   runLiveValidation?: boolean;
+  /**
+   * Opt-in: each repair attempt is a full extra Copilot session (real cost),
+   * so this stays off unless explicitly requested, capped at
+   * config.agentMaxRepairAttempts. Only has anything to react to when
+   * validation actually finds a compile error or (with runLiveValidation) a
+   * live test failure - otherwise it's a no-op.
+   */
+  enableRepairLoop?: boolean;
 }
 
 export interface SkillContext {

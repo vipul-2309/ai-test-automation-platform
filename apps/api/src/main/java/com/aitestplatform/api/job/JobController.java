@@ -70,6 +70,11 @@ public class JobController {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
                     "testCaseSheet is required and must not be empty.");
         }
+        String sheetFilename = testCaseSheet.getOriginalFilename();
+        if (sheetFilename == null || !(sheetFilename.endsWith(".xlsx") || sheetFilename.endsWith(".csv"))) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                    "testCaseSheet must be a .xlsx or .csv file; got \"" + sheetFilename + "\".");
+        }
 
         UUID jobId = UUID.randomUUID();
         String sheetPath = storageService.storeTestCaseSheet(jobId, testCaseSheet);

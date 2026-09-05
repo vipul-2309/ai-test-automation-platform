@@ -1,6 +1,7 @@
 import express from "express";
 import multer from "multer";
 import { generateProject } from "./generate.js";
+import { parseTestCaseSheet } from "./testCaseSheet.js";
 import { config } from "./config.js";
 
 const app = express();
@@ -28,6 +29,7 @@ app.post("/api/projects", upload.single("testCaseSheet"), async (req, res) => {
       testCaseSheet: req.file.buffer,
       skipDiscovery: req.body.skipDiscovery === "true" || req.body.skipDiscovery === true,
       runLiveValidation: req.body.runLiveValidation === "true" || req.body.runLiveValidation === true,
+      enableRepairLoop: req.body.enableRepairLoop === "true" || req.body.enableRepairLoop === true,
     });
 
     if (!result.success || !result.zipPath) {
@@ -43,6 +45,27 @@ app.post("/api/projects", upload.single("testCaseSheet"), async (req, res) => {
     res.download(result.zipPath, `${result.projectName}.zip`);
   } catch (err) {
     res.status(500).json({ error: (err as Error).message });
+  }
+});
+
+/**
+ * POST /api/preview — multipart/form-data: testCaseSheet (file, .xlsx or .csv).
+ * Parses and returns the structured TestCase[] without running generation - lets a
+ * caller confirm the sheet's columns/rows are being read correctly before spending a
+ * Copilot session on it. Lives here rather than on apps/api because the actual
+ * parsing logic (testCaseSheet.ts) only exists in this service.
+ */
+app.post("/api/preview", upload.single("testCaseSheet"), async (req, res) => {
+  try {
+    if (!req.file) {
+      res.status(400).json({ error: "testCaseSheet file is required (multipart field name: testCaseSheet)." });
+      return;
+    }
+
+    const testCases = await parseTestCaseSheet(req.file.buffer);
+    res.json({ testCases });
+  } catch (err) {
+    res.status(400).json({ error: (err as Error).message });
   }
 });
 

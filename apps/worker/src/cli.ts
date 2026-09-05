@@ -4,12 +4,16 @@ import { generateProject } from "./generate.js";
 /**
  * Local test harness for the generation pipeline, no HTTP required:
  *   npm run generate -- --project=globex-crm --url=https://example.com --sheet=./TestCases.xlsx \
- *     [--username=u --password=p] [--skip-discovery] [--run-live-validation]
+ *     [--username=u --password=p] [--skip-discovery] [--run-live-validation] [--enable-repair-loop]
  *
  * --run-live-validation actually executes the generated suite against the live
  * app (real logins/submissions, whatever the test steps do) as part of
  * independent verification - off by default, since that's a heavier action
  * than discovery's single login. See validation.ts.
+ *
+ * --enable-repair-loop lets the agent retry on what validation found wrong
+ * (up to AGENT_MAX_REPAIR_ATTEMPTS fresh sessions) - off by default since
+ * each attempt is a real extra Copilot session. See generate.ts's repair loop.
  */
 function parseArgs(argv: string[]): Record<string, string | boolean> {
   const args: Record<string, string | boolean> = {};
@@ -47,6 +51,7 @@ async function main(): Promise<void> {
     testCaseSheet,
     skipDiscovery: Boolean(args["skip-discovery"]),
     runLiveValidation: Boolean(args["run-live-validation"]),
+    enableRepairLoop: Boolean(args["enable-repair-loop"]),
   });
 
   console.log("\n---- transcript ----");

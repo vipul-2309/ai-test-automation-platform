@@ -8,3 +8,4 @@ discovery-output/
 .env
 .env.local
 *.log
+application-local.properties

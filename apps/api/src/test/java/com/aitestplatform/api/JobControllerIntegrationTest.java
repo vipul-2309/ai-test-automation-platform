@@ -83,6 +83,48 @@ class JobControllerIntegrationTest {
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
     }
 
+    @Test
+    void submit_acceptsCsvTestCaseSheet() {
+        MultiValueMap<String, Object> form = new LinkedMultiValueMap<>();
+        form.add("projectName", "globex-crm");
+        form.add("appUrl", "https://example.com/login");
+        form.add("testCaseSheet", new ByteArrayResource("Test Case ID,Expected Result\nTC_1,ok".getBytes()) {
+            @Override
+            public String getFilename() {
+                return "TestCases.csv";
+            }
+        });
+
+        HttpHeaders headers = new HttpHeaders();
+        headers.setContentType(MediaType.MULTIPART_FORM_DATA);
+        HttpEntity<MultiValueMap<String, Object>> request = new HttpEntity<>(form, headers);
+
+        ResponseEntity<String> response = rest.postForEntity(baseUrl("/api/projects"), request, String.class);
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.ACCEPTED);
+    }
+
+    @Test
+    void submit_rejectsUnsupportedSheetExtension() {
+        MultiValueMap<String, Object> form = new LinkedMultiValueMap<>();
+        form.add("projectName", "globex-crm");
+        form.add("appUrl", "https://example.com/login");
+        form.add("testCaseSheet", new ByteArrayResource("not a sheet".getBytes()) {
+            @Override
+            public String getFilename() {
+                return "TestCases.txt";
+            }
+        });
+
+        HttpHeaders headers = new HttpHeaders();
+        headers.setContentType(MediaType.MULTIPART_FORM_DATA);
+        HttpEntity<MultiValueMap<String, Object>> request = new HttpEntity<>(form, headers);
+
+        ResponseEntity<String> response = rest.postForEntity(baseUrl("/api/projects"), request, String.class);
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
+    }
+
     private String baseUrl(String path) {
         return "http://localhost:" + port + path;
     }

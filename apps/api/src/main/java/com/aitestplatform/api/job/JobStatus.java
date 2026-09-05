@@ -10,6 +10,8 @@ public enum JobStatus {
     QUEUED,
     GENERATING,
     VERIFYING,
+    /** Only reached when the job's caller opted into the repair loop and validation found something to fix. */
+    REPAIRING,
     PACKAGING,
     READY,
     FAILED
