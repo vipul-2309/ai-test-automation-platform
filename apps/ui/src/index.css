@@ -11,4 +11,36 @@
 body {
   margin: 0;
   @apply bg-slate-50 text-slate-900 dark:bg-slate-950 dark:text-slate-100;
+  background-image: radial-gradient(circle at top, rgba(99, 102, 241, 0.08), transparent 55%);
+  background-attachment: fixed;
+}
+
+@keyframes fade-in-up {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-fade-in-up {
+  animation: fade-in-up 0.35s ease-out both;
+}
+
+@keyframes toast-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.animate-toast-in {
+  animation: toast-in 0.2s ease-out both;
 }
