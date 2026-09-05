@@ -1,8 +1,10 @@
 import { useEffect, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
-import { absoluteDownloadUrl, getJobStatus } from '../api'
-import type { JobResponse } from '../types'
+import { absoluteDownloadUrl, getFileTree, getJobStatus } from '../api'
+import type { FileNode, JobResponse } from '../types'
 import { StatusStepper } from '../components/StatusStepper'
+import { FileTree } from '../components/FileTree'
+import { ValidationReport } from '../components/ValidationReport'
 
 const POLL_INTERVAL_MS = 3000
 const TERMINAL_STATUSES = new Set(['READY', 'FAILED'])
@@ -11,6 +13,8 @@ export function JobStatusPage() {
   const { id } = useParams<{ id: string }>()
   const [job, setJob] = useState<JobResponse | undefined>()
   const [error, setError] = useState<string | undefined>()
+  const [fileTree, setFileTree] = useState<FileNode | undefined>()
+  const [fileTreeError, setFileTreeError] = useState<string | undefined>()
 
   useEffect(() => {
     if (!id) return
@@ -39,6 +43,23 @@ export function JobStatusPage() {
       if (timer) clearTimeout(timer)
     }
   }, [id])
+
+  useEffect(() => {
+    if (!job || job.status !== 'READY' || !job.filesUrl) return
+    let cancelled = false
+
+    getFileTree(job)
+      .then((tree) => {
+        if (!cancelled) setFileTree(tree)
+      })
+      .catch((err) => {
+        if (!cancelled) setFileTreeError(err instanceof Error ? err.message : String(err))
+      })
+
+    return () => {
+      cancelled = true
+    }
+  }, [job?.id, job?.status, job?.filesUrl])
 
   return (
     <div className="mx-auto max-w-2xl px-4 py-10">
@@ -80,6 +101,8 @@ export function JobStatusPage() {
         </div>
       )}
 
+      {job?.validationReport && <ValidationReport report={job.validationReport} />}
+
       {job?.status === 'READY' && (
         <a
           href={absoluteDownloadUrl(job)}
@@ -87,6 +110,25 @@ export function JobStatusPage() {
         >
           Download project (.zip)
         </a>
+      )}
+
+      {job?.status === 'READY' && (
+        <div className="mt-6 rounded-md border border-slate-200 bg-white px-4 py-3 dark:border-slate-700 dark:bg-slate-900">
+          <h2 className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+            Generated files
+          </h2>
+          {fileTreeError && (
+            <p className="mt-1 text-sm text-red-600 dark:text-red-400">{fileTreeError}</p>
+          )}
+          {fileTree && (
+            <div className="mt-2 max-h-80 overflow-auto">
+              <FileTree root={fileTree} />
+            </div>
+          )}
+          {!fileTree && !fileTreeError && (
+            <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">Loading file list…</p>
+          )}
+        </div>
       )}
     </div>
   )

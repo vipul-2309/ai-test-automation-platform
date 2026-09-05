@@ -7,6 +7,34 @@ export type JobStatus =
   | "READY"
   | "FAILED"
 
+export interface TestFailure {
+  testName: string
+  description?: string
+  message?: string
+}
+
+export interface TestResults {
+  ran: boolean
+  total: number
+  passed: number
+  failed: number
+  skipped: number
+  failures: TestFailure[]
+}
+
+export interface FileSafetyIssue {
+  severity: 'warning' | 'block'
+  file: string
+  reason: string
+}
+
+export interface ValidationResult {
+  compileOk: boolean
+  compileError?: string
+  testResults: TestResults
+  fileSafetyIssues: FileSafetyIssue[]
+}
+
 export interface JobResponse {
   id: string
   projectName: string
@@ -17,6 +45,14 @@ export interface JobResponse {
   createdAt: string
   updatedAt: string
   downloadUrl?: string
+  filesUrl?: string
+  validationReport?: ValidationResult
+}
+
+export interface FileNode {
+  name: string
+  type: 'file' | 'dir'
+  children: FileNode[]
 }
 
 export interface TestStep {

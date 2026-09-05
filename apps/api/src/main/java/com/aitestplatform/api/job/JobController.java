@@ -17,12 +17,20 @@ import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.multipart.MultipartFile;
 import org.springframework.web.server.ResponseStatusException;
 
+import java.io.IOException;
 import java.nio.file.Path;
 import java.security.SecureRandom;
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.Base64;
+import java.util.Enumeration;
+import java.util.List;
+import java.util.Map;
+import java.util.TreeMap;
 import java.util.UUID;
 import java.util.regex.Pattern;
+import java.util.zip.ZipEntry;
+import java.util.zip.ZipFile;
 
 /**
  * Owns the request lifecycle per architecture doc §03: validates input, stores the
@@ -127,6 +135,77 @@ public class JobController {
                 .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + job.getProjectName() + ".zip\"")
                 .contentType(MediaType.APPLICATION_OCTET_STREAM)
                 .body(resource);
+    }
+
+    /**
+     * A file-tree preview of the generated project, read directly from the zip's own
+     * entries rather than a manifest recorded at packaging time - so it can never drift
+     * from what download actually serves. Distinct endpoint from download (same
+     * token/status guard) so the UI can show what was generated before committing to
+     * pulling the whole archive.
+     */
+    @GetMapping("/{id}/files")
+    public FileNode files(@PathVariable UUID id, @RequestParam String token) {
+        Job job = jobRepository.findById(id)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "No job with id " + id));
+
+        if (!job.getDownloadToken().equals(token)) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Invalid download token.");
+        }
+        if (job.getStatus() != JobStatus.READY || job.getZipPath() == null) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT,
+                    "Job is not ready for a file listing yet (status: " + job.getStatus() + ").");
+        }
+
+        return buildFileTree(Path.of(job.getZipPath()));
+    }
+
+    public record FileNode(String name, String type, List<FileNode> children) {
+    }
+
+    private static FileNode buildFileTree(Path zipPath) {
+        Map<String, Object> root = new TreeMap<>();
+        try (ZipFile zipFile = new ZipFile(zipPath.toFile())) {
+            Enumeration<? extends ZipEntry> entries = zipFile.entries();
+            while (entries.hasMoreElements()) {
+                ZipEntry entry = entries.nextElement();
+                if (entry.isDirectory()) {
+                    continue;
+                }
+                String[] segments = entry.getName().split("/");
+                insertPath(root, segments, 0);
+            }
+        } catch (IOException e) {
+            throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR,
+                    "Could not read the generated project archive: " + e.getMessage());
+        }
+        return toFileNode("", root);
+    }
+
+    @SuppressWarnings("unchecked")
+    private static void insertPath(Map<String, Object> cursor, String[] segments, int index) {
+        boolean isLast = index == segments.length - 1;
+        String segment = segments[index];
+        if (isLast) {
+            cursor.put(segment, null);
+        } else {
+            Map<String, Object> child =
+                    (Map<String, Object>) cursor.computeIfAbsent(segment, key -> new TreeMap<String, Object>());
+            insertPath(child, segments, index + 1);
+        }
+    }
+
+    @SuppressWarnings("unchecked")
+    private static FileNode toFileNode(String name, Map<String, Object> dir) {
+        List<FileNode> children = new ArrayList<>();
+        for (Map.Entry<String, Object> entry : dir.entrySet()) {
+            if (entry.getValue() == null) {
+                children.add(new FileNode(entry.getKey(), "file", List.of()));
+            } else {
+                children.add(toFileNode(entry.getKey(), (Map<String, Object>) entry.getValue()));
+            }
+        }
+        return new FileNode(name, "dir", children);
     }
 
     private static String generateDownloadToken() {

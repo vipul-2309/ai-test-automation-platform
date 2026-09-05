@@ -54,6 +54,10 @@ public class Job {
     @Column(name = "summary", columnDefinition = "TEXT")
     private String summary;
 
+    /** JSON string (see apps/worker's ValidationResult) written once the job reaches a terminal state. */
+    @Column(name = "validation_report", columnDefinition = "TEXT")
+    private String validationReport;
+
     @Column(name = "created_at", nullable = false)
     private Instant createdAt;
 

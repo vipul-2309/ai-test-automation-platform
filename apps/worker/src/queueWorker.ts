@@ -97,11 +97,27 @@ export async function processJob(
 
     const result = await generate(input, (status) => updateJobStatus(job.id, status, {}, db));
 
+    // Only known at the terminal state (validation runs before packaging, and
+    // progress updates in between only touch the status column) - see Job.java's
+    // validation_report doc comment for why this is stored as a distinct field
+    // rather than folded into summary.
+    const validationReport = result.validation ? JSON.stringify(result.validation) : null;
+
     if (result.success && result.zipPath) {
-      await updateJobStatus(job.id, "READY", { zip_path: result.zipPath, summary: result.summary }, db);
+      await updateJobStatus(
+        job.id,
+        "READY",
+        { zip_path: result.zipPath, summary: result.summary, validation_report: validationReport },
+        db
+      );
       console.log(`[queue] job ${job.id} READY`);
     } else {
-      await updateJobStatus(job.id, "FAILED", { error_message: result.error, summary: result.summary }, db);
+      await updateJobStatus(
+        job.id,
+        "FAILED",
+        { error_message: result.error, summary: result.summary, validation_report: validationReport },
+        db
+      );
       console.log(`[queue] job ${job.id} FAILED: ${result.error}`);
     }
   } catch (err) {

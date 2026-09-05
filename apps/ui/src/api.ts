@@ -1,4 +1,4 @@
-import type { JobResponse, TestCase } from './types'
+import type { FileNode, JobResponse, TestCase } from './types'
 
 // Two separate backends, per the actual current architecture: apps/api owns
 // job submission/status/download; apps/worker owns sheet parsing (the only
@@ -47,6 +47,23 @@ export async function getJobStatus(id: string): Promise<JobResponse> {
 /** JobResponse.downloadUrl is API-relative (e.g. "/api/projects/{id}/download?token=..."); this makes it absolute. */
 export function absoluteDownloadUrl(job: JobResponse): string | undefined {
   return job.downloadUrl ? `${API_BASE}${job.downloadUrl}` : undefined
+}
+
+/** JobResponse.filesUrl is API-relative (e.g. "/api/projects/{id}/files?token=..."); this makes it absolute. */
+export function absoluteFilesUrl(job: JobResponse): string | undefined {
+  return job.filesUrl ? `${API_BASE}${job.filesUrl}` : undefined
+}
+
+export async function getFileTree(job: JobResponse): Promise<FileNode> {
+  const url = absoluteFilesUrl(job)
+  if (!url) {
+    throw new Error('Job has no filesUrl yet (not READY).')
+  }
+  const res = await fetch(url)
+  if (!res.ok) {
+    throw new Error(await readErrorMessage(res, 'message'))
+  }
+  return res.json()
 }
 
 export async function previewSheet(file: File): Promise<{ testCases: TestCase[] }> {

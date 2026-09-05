@@ -2,6 +2,7 @@ package com.aitestplatform.api.job.dto;
 
 import com.aitestplatform.api.job.Job;
 import com.aitestplatform.api.job.JobStatus;
+import com.fasterxml.jackson.annotation.JsonRawValue;
 
 import java.time.Instant;
 import java.util.UUID;
@@ -15,12 +16,20 @@ public record JobResponse(
         String summary,
         Instant createdAt,
         Instant updatedAt,
-        String downloadUrl
+        String downloadUrl,
+        String filesUrl,
+        // Job.validationReport is already a JSON string (written by apps/worker) - embed it
+        // as-is rather than re-encoding it as a quoted string within a string.
+        @JsonRawValue String validationReport
 ) {
-    /** downloadUrl carries the per-job token stand-in for a real signed object-storage URL. */
+    /** downloadUrl/filesUrl carry the per-job token stand-in for a real signed object-storage URL. */
     public static JobResponse from(Job job) {
-        String downloadUrl = job.getStatus() == JobStatus.READY
+        boolean ready = job.getStatus() == JobStatus.READY;
+        String downloadUrl = ready
                 ? "/api/projects/" + job.getId() + "/download?token=" + job.getDownloadToken()
+                : null;
+        String filesUrl = ready
+                ? "/api/projects/" + job.getId() + "/files?token=" + job.getDownloadToken()
                 : null;
         return new JobResponse(
                 job.getId(),
@@ -31,7 +40,9 @@ public record JobResponse(
                 job.getSummary(),
                 job.getCreatedAt(),
                 job.getUpdatedAt(),
-                downloadUrl
+                downloadUrl,
+                filesUrl,
+                job.getValidationReport()
         );
     }
 }
