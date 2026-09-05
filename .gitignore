@@ -5,6 +5,7 @@ target/
 workspaces/
 verified-projects/
 discovery-output/
+apps/api/data/
 .env
 .env.local
 *.log

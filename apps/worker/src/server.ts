@@ -1,10 +1,14 @@
 import express from "express";
+import cors from "cors";
 import multer from "multer";
 import { generateProject } from "./generate.js";
 import { parseTestCaseSheet } from "./testCaseSheet.js";
 import { config } from "./config.js";
 
 const app = express();
+// apps/ui calls /api/preview directly from the browser - without this, the
+// browser's same-origin policy blocks it before it reaches Express at all.
+app.use(cors({ origin: process.env.UI_ORIGIN ?? "http://localhost:5173" }));
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 25 * 1024 * 1024 } });
 
 /**
